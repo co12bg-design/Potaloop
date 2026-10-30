@@ -8,7 +8,7 @@ A laptop lending tracker for educational institutions, with borrower validation,
 
 [Features](#-features) · [Getting started](#-getting-started) · [How it works](#-how-it-works) · [Project challenge](#-project-challenge-responses) · [Roadmap](#-next-steps)
 
-![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B-5391FE?logo=powershell&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
 ![Data](https://img.shields.io/badge/data-local%20JSON-2F855A)
 ![Project](https://img.shields.io/badge/status-academic%20MVP-805AD5)
 
@@ -20,7 +20,7 @@ A laptop lending tracker for educational institutions, with borrower validation,
 
 PortaLoop helps a school or training center keep track of who has each laptop, when it is due back, and whether it has been returned. It records a photo of the laptop at handoff and prevents a borrower from checking out another device while one is still on loan.
 
-The project is designed as a simple, local-first console app. It stores records in a JSON file and keeps handoff photos in a local evidence folder.
+The project is a local-first console app written in Python. It stores records in a JSON file and keeps handoff photos in a local evidence folder.
 
 ## ✨ Features
 
@@ -31,32 +31,40 @@ The project is designed as a simple, local-first console app. It stores records 
 - 📅 Validate dates and flag overdue loans.
 - 🔁 Record returns, release the laptop, and retain the loan history.
 - 📋 View pending loans, available laptops, and recent history.
-- 💾 Save records locally between sessions, with no external packages or internet connection required.
+- 💾 Save records locally between sessions, with no third-party packages or internet connection required.
 
 ## 🧱 Tech stack
 
 | Technology | Role |
 |---|---|
-| PowerShell 5.1+ | Console interface and application logic |
+| Python 3.10+ | Console interface and application logic |
+| Python standard library | Input validation, file handling, dates, and photo copying |
 | JSON | Local borrower, laptop, and loan records |
-| Windows Camera | Optional handoff-photo capture |
+| Windows Camera | Optional handoff-photo capture on Windows |
 | JPG / PNG | Supported photo evidence formats |
 
 ## 🚀 Getting started
 
 ### Requirements
 
-- Windows with Windows PowerShell 5.1 or PowerShell 7.
+- Python 3.10 or newer.
+- Windows is recommended for the built-in Camera app. The rest of the console features use Python's standard library.
 - No package installation or internet access is needed to run the app.
 
 ### Run PortaLoop
 
 1. Download or clone this repository.
-2. Open PowerShell in the project folder.
-3. Run:
+2. Open a terminal in the project folder.
+3. Run one of these commands:
+
+   ```bash
+   python main.py
+   ```
+
+   On Windows, if `python` is not recognized, try:
 
    ```powershell
-   .\main.ps1
+   py main.py
    ```
 
 4. Register a laptop and a borrower before creating a loan.
@@ -75,7 +83,7 @@ The project is designed as a simple, local-first console app. It stores records 
 | 7 | View loan history |
 | 0 | Save and exit |
 
-When creating a loan, PortaLoop opens the Windows Camera app and asks for the saved JPG or PNG photo. The app copies the image into `evidencias/` and stores its relative path with the loan. If Camera does not open, take the photo with another camera app and enter its file path. Press Enter at the photo prompt to cancel the loan.
+When creating a loan on Windows, PortaLoop opens the Camera app and asks for the saved JPG or PNG photo. The app copies the image into `evidencias/` and stores its relative path with the loan. If Camera does not open, take the photo with another camera app and enter its file path. Press Enter at the photo prompt to cancel the loan.
 
 ## 🔄 How it works
 

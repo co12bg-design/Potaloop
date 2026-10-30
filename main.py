@@ -1,0 +1,298 @@
+"""PortaLoop: console-based laptop lending tracker."""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import shutil
+from datetime import date, datetime
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+DATA_FILE = ROOT / "prestamos.json"
+EVIDENCE_DIR = ROOT / "evidencias"
+TODAY = date.today
+
+
+def empty_state() -> dict:
+    return {"equipment": [], "borrowers": [], "loans": [], "next_id": 1}
+
+
+def load_state() -> dict:
+    if not DATA_FILE.exists():
+        return empty_state()
+    try:
+        state = json.loads(DATA_FILE.read_text(encoding="utf-8"))
+        for key in ("equipment", "borrowers", "loans"):
+            if not isinstance(state.get(key), list):
+                raise ValueError(f"Invalid '{key}' data in {DATA_FILE.name}.")
+        state["next_id"] = int(state.get("next_id", 1))
+        return state
+    except (OSError, json.JSONDecodeError, ValueError, TypeError) as exc:
+        raise RuntimeError(f"Could not load {DATA_FILE.name}: {exc}") from exc
+
+
+def save_state(state: dict) -> None:
+    temporary_file = DATA_FILE.with_suffix(".json.tmp")
+    temporary_file.write_text(json.dumps(state, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    temporary_file.replace(DATA_FILE)
+
+
+def prompt_date(message: str, default_today: bool = False) -> date | None:
+    raw = input(message).strip()
+    if not raw and default_today:
+        return TODAY()
+    try:
+        return datetime.strptime(raw, "%Y-%m-%d").date()
+    except ValueError:
+        print("Invalid date. Use YYYY-MM-DD, for example 2026-10-30.")
+        return None
+
+
+def pending_loans(state: dict) -> list[dict]:
+    return [loan for loan in state["loans"] if not loan.get("return_date")]
+
+
+def add_equipment(state: dict) -> None:
+    code = input("Laptop asset code: ").strip().upper()
+    description = input("Description (brand/model): ").strip()
+    if not re.fullmatch(r"[A-Z0-9][A-Z0-9-]{1,19}", code):
+        print("Invalid code. Use 2-20 letters, numbers, or hyphens.")
+        return
+    if not 2 <= len(description) <= 80:
+        print("Description must contain 2-80 characters.")
+        return
+    if any(item["code"] == code for item in state["equipment"]):
+        print("A laptop with that asset code is already registered.")
+        return
+    state["equipment"].append({"code": code, "description": description, "active": True})
+    save_state(state)
+    print("Laptop registered.")
+
+
+def add_borrower(state: dict) -> None:
+    document = input("Borrower ID: ").strip()
+    name = input("Full name: ").strip()
+    contact = input("Contact (optional): ").strip()
+    if not re.fullmatch(r"[\w.-]{3,25}", document, flags=re.UNICODE):
+        print("Invalid ID. Use 3-25 letters, numbers, periods, or hyphens.")
+        return
+    if not 2 <= len(name) <= 80 or not all(ch.isalpha() or ch in " '-." for ch in name):
+        print("Invalid name. Use 2-80 letters, spaces, apostrophes, periods, or hyphens.")
+        return
+    email_ok = re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", contact)
+    phone_ok = re.fullmatch(r"\+?\d[\d ()-]{5,19}", contact)
+    if contact and not (email_ok or phone_ok):
+        print("Invalid contact. Enter a phone number or email address.")
+        return
+    if any(person["document"] == document for person in state["borrowers"]):
+        print("A borrower with that ID is already registered.")
+        return
+    state["borrowers"].append({"document": document, "name": name, "contact": contact})
+    save_state(state)
+    print("Borrower registered.")
+
+
+def is_supported_image(path: Path) -> bool:
+    if not path.is_file() or path.suffix.lower() not in {".jpg", ".jpeg", ".png"}:
+        return False
+    try:
+        with path.open("rb") as image_file:
+            header = image_file.read(8)
+    except OSError:
+        return False
+    png_signature = b"\x89PNG\r\n\x1a\n"
+    return header.startswith(png_signature) or header.startswith(b"\xff\xd8\xff")
+
+
+def get_photo_evidence(loan_id: int) -> str | None:
+    print("Take a photo of the laptop before handing it over.")
+    if os.name == "nt":
+        try:
+            os.startfile("microsoft.windows.camera:")  # type: ignore[attr-defined]
+        except OSError:
+            print("Camera did not open. Take the photo with another app, then enter its file path.")
+    raw_path = input("Path to the JPG/PNG photo (press Enter to cancel): ").strip().strip('"')
+    if not raw_path:
+        print("Loan cancelled because photo evidence is required.")
+        return None
+    source = Path(raw_path).expanduser()
+    if not is_supported_image(source):
+        print("Invalid image. Select an existing JPG or PNG image file.")
+        return None
+    try:
+        EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
+        destination = EVIDENCE_DIR / f"loan-{loan_id}{source.suffix.lower()}"
+        shutil.copy2(source, destination)
+    except OSError as exc:
+        print(f"Could not save the photo: {exc}")
+        return None
+    return destination.relative_to(ROOT).as_posix()
+
+
+def create_loan(state: dict) -> None:
+    code = input("Laptop asset code: ").strip().upper()
+    equipment = next(
+        (item for item in state["equipment"] if item["code"] == code and item.get("active", True)),
+        None,
+    )
+    if not equipment:
+        print("No active laptop with that asset code was found.")
+        return
+    if any(loan["equipment_code"] == code for loan in pending_loans(state)):
+        print("This laptop already has an open loan.")
+        return
+
+    document = input("Borrower ID: ").strip()
+    borrower = next((person for person in state["borrowers"] if person["document"] == document), None)
+    if not borrower:
+        print("Borrower not found. Register them first (option 2).")
+        return
+    if any(loan["document"] == document for loan in pending_loans(state)):
+        print(f"Loan blocked: {borrower['name']} must return their current laptop first.")
+        return
+
+    loan_date = prompt_date(f"Checkout date [Enter = {TODAY().isoformat()}]: ", default_today=True)
+    if loan_date is None:
+        return
+    if loan_date > TODAY():
+        print("Checkout date cannot be in the future.")
+        return
+    due_date = prompt_date("Due date (YYYY-MM-DD): ")
+    if due_date is None:
+        return
+    if due_date < loan_date:
+        print("Due date cannot be earlier than the checkout date.")
+        return
+
+    notes = input("Notes or included accessories (optional): ").strip()
+    loan_id = state["next_id"]
+    photo_path = get_photo_evidence(loan_id)
+    if not photo_path:
+        return
+    state["loans"].append(
+        {
+            "id": loan_id,
+            "equipment_code": code,
+            "description": equipment["description"],
+            "document": document,
+            "borrower_name": borrower["name"],
+            "loan_date": loan_date.isoformat(),
+            "due_date": due_date.isoformat(),
+            "return_date": None,
+            "notes": notes,
+            "photo_path": photo_path,
+        }
+    )
+    state["next_id"] += 1
+    save_state(state)
+    print("Loan registered.")
+
+
+def show_pending(state: dict) -> None:
+    loans = pending_loans(state)
+    if not loans:
+        print("There are no pending loans.")
+        return
+    today = TODAY().isoformat()
+    for loan in sorted(loans, key=lambda item: (item["due_date"], item["equipment_code"])):
+        status = "OVERDUE" if loan["due_date"] < today else "current"
+        print(
+            f"#{loan['id']} | {loan['equipment_code']} ({loan['description']}) | "
+            f"{loan['borrower_name']} [{loan['document']}] | checked out {loan['loan_date']} | "
+            f"due {loan['due_date']} | {status} | photo {loan.get('photo_path', '')} | {loan['notes']}"
+        )
+
+
+def return_equipment(state: dict) -> None:
+    show_pending(state)
+    raw_id = input("Loan number to return (press Enter to cancel): ").strip()
+    if not raw_id:
+        return
+    if not raw_id.isdigit():
+        print("Enter a valid loan number.")
+        return
+    loan = next((item for item in pending_loans(state) if item["id"] == int(raw_id)), None)
+    if not loan:
+        print("No open loan was found with that number.")
+        return
+    return_date = prompt_date(f"Return date [Enter = {TODAY().isoformat()}]: ", default_today=True)
+    if return_date is None:
+        return
+    loan_date = date.fromisoformat(loan["loan_date"])
+    if return_date < loan_date or return_date > TODAY():
+        print("Return date must be between the checkout date and today.")
+        return
+    loan["return_date"] = return_date.isoformat()
+    save_state(state)
+    print("Return recorded; the laptop is available again.")
+
+
+def show_available(state: dict) -> None:
+    open_codes = {loan["equipment_code"] for loan in pending_loans(state)}
+    available = [
+        item for item in state["equipment"] if item.get("active", True) and item["code"] not in open_codes
+    ]
+    if not available:
+        print("There are no available laptops.")
+        return
+    for item in sorted(available, key=lambda laptop: laptop["code"]):
+        print(f"{item['code']} - {item['description']}")
+
+
+def show_history(state: dict) -> None:
+    loans = sorted(state["loans"], key=lambda item: item["id"], reverse=True)[:30]
+    if not loans:
+        print("No loans have been recorded yet.")
+        return
+    for loan in loans:
+        returned = loan.get("return_date") or "pending"
+        print(
+            f"{loan['equipment_code']} | {loan['borrower_name']} | "
+            f"{loan['loan_date']} -> {loan['due_date']} | returned: {returned} | "
+            f"photo: {loan.get('photo_path', '')} | {loan['notes']}"
+        )
+
+
+def main() -> None:
+    try:
+        state = load_state()
+    except RuntimeError as exc:
+        print(exc)
+        return
+
+    actions = {
+        "1": add_equipment,
+        "2": add_borrower,
+        "3": create_loan,
+        "4": show_pending,
+        "5": return_equipment,
+        "6": show_available,
+        "7": show_history,
+    }
+    while True:
+        print("\n=== PORTALOOP | LAPTOP LENDING & EXCHANGE ===")
+        print("1. Register laptop       2. Register borrower")
+        print("3. Create loan           4. View pending and overdue loans")
+        print("5. Record return         6. View available laptops")
+        print("7. View loan history     0. Save and exit")
+        try:
+            choice = input("Choose an option: ").strip()
+            if choice == "0":
+                print("Changes are saved. Goodbye!")
+                break
+            action = actions.get(choice)
+            if action:
+                action(state)
+            else:
+                print("Invalid option.")
+        except (KeyboardInterrupt, EOFError):
+            print("\nExiting. Previously saved records are preserved.")
+            break
+        except OSError as exc:
+            print(f"Could not save data: {exc}")
+
+
+if __name__ == "__main__":
+    main()

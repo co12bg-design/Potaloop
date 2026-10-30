@@ -2,6 +2,8 @@
 prestamos.json
 evidencias/
 
-# PowerShell editor/runtime artifacts
-*.ps1xml
-*.clixml
+# Python cache and virtual environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
