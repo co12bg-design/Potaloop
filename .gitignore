@@ -1,0 +1,7 @@
+# User-specific loan data and photo evidence must stay out of version control.
+prestamos.json
+evidencias/
+
+# PowerShell editor/runtime artifacts
+*.ps1xml
+*.clixml
