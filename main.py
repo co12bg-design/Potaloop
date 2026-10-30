@@ -6,6 +6,7 @@ import json
 import os
 import re
 import shutil
+import sys
 from datetime import date, datetime
 from pathlib import Path
 
@@ -13,6 +14,90 @@ ROOT = Path(__file__).resolve().parent
 DATA_FILE = ROOT / "prestamos.json"
 EVIDENCE_DIR = ROOT / "evidencias"
 TODAY = date.today
+
+
+def enable_terminal_colors() -> bool:
+    """Enable ANSI colors where supported, with no third-party dependencies."""
+    if not sys.stdout.isatty():
+        return False
+    if os.name == "nt":
+        try:
+            import ctypes
+
+            handle = ctypes.windll.kernel32.GetStdHandle(-11)
+            mode = ctypes.c_uint()
+            if ctypes.windll.kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+                ctypes.windll.kernel32.SetConsoleMode(handle, mode.value | 0x0004)
+        except (AttributeError, OSError):
+            pass
+    return True
+
+
+USE_COLOR = enable_terminal_colors()
+RESET = "\033[0m" if USE_COLOR else ""
+BOLD = "\033[1m" if USE_COLOR else ""
+CYAN = "\033[96m" if USE_COLOR else ""
+GREEN = "\033[92m" if USE_COLOR else ""
+YELLOW = "\033[93m" if USE_COLOR else ""
+RED = "\033[91m" if USE_COLOR else ""
+
+
+def print_message(message: str, kind: str = "info") -> None:
+    color = {"success": GREEN, "warning": YELLOW, "error": RED, "info": CYAN}.get(kind, "")
+    marker = {"success": "✓", "warning": "!", "error": "✗", "info": "›"}.get(kind, "›")
+    print(f"{color}{marker} {message}{RESET}")
+
+
+def draw_menu(state: dict) -> None:
+    columns = shutil.get_terminal_size((80, 24)).columns
+    width = max(62, min(80, columns - 2))
+    inner = width - 2
+    double_column = width >= 76
+
+    def border(left: str, fill: str, right: str) -> None:
+        print(f"{CYAN}{left}{fill * inner}{right}{RESET}")
+
+    def line(text: str = "", centered: bool = False) -> None:
+        content_width = inner - 2
+        text = text[:content_width]
+        content = text.center(content_width) if centered else text.ljust(content_width)
+        print(f"{CYAN}║{RESET} {content} {CYAN}║{RESET}")
+
+    open_loans = pending_loans(state)
+    open_codes = {loan["equipment_code"] for loan in open_loans}
+    available_count = sum(
+        item.get("active", True) and item["code"] not in open_codes
+        for item in state["equipment"]
+    )
+    overdue_count = sum(loan["due_date"] < TODAY().isoformat() for loan in open_loans)
+
+    print()
+    border("╔", "═", "╗")
+    line("PORTALOOP", centered=True)
+    line("LAPTOP LENDING & EXCHANGE", centered=True)
+    border("╠", "═", "╣")
+    line(
+        f"LAPTOPS  {len(state['equipment'])}    AVAILABLE  {available_count}    "
+        f"BORROWERS  {len(state['borrowers'])}"
+    )
+    line(f"OPEN LOANS  {len(open_loans)}    OVERDUE  {overdue_count}")
+    border("╠", "═", "╣")
+    line("MAIN MENU", centered=True)
+    options = [
+        ("[1] Register laptop", "[2] Register borrower"),
+        ("[3] Create loan", "[4] Pending / overdue loans"),
+        ("[5] Record return", "[6] Available laptops"),
+        ("[7] Loan history", "[0] Save and exit"),
+    ]
+    if double_column:
+        for left, right in options:
+            line(f"{left:<31}  {right}")
+    else:
+        for left, right in options:
+            line(left)
+            line(right)
+    border("╚", "═", "╝")
+    print(f"{BOLD}Enter an option number (0-7). You can type 5 or 5.{RESET}")
 
 
 def empty_state() -> dict:
@@ -68,7 +153,7 @@ def add_equipment(state: dict) -> None:
         return
     state["equipment"].append({"code": code, "description": description, "active": True})
     save_state(state)
-    print("Laptop registered.")
+    print_message("Laptop registered.", "success")
 
 
 def add_borrower(state: dict) -> None:
@@ -91,7 +176,7 @@ def add_borrower(state: dict) -> None:
         return
     state["borrowers"].append({"document": document, "name": name, "contact": contact})
     save_state(state)
-    print("Borrower registered.")
+    print_message("Borrower registered.", "success")
 
 
 def is_supported_image(path: Path) -> bool:
@@ -187,7 +272,7 @@ def create_loan(state: dict) -> None:
     )
     state["next_id"] += 1
     save_state(state)
-    print("Loan registered.")
+    print_message("Loan registered.", "success")
 
 
 def show_pending(state: dict) -> None:
@@ -226,7 +311,7 @@ def return_equipment(state: dict) -> None:
         return
     loan["return_date"] = return_date.isoformat()
     save_state(state)
-    print("Return recorded; the laptop is available again.")
+    print_message("Return recorded; the laptop is available again.", "success")
 
 
 def show_available(state: dict) -> None:
@@ -272,26 +357,22 @@ def main() -> None:
         "7": show_history,
     }
     while True:
-        print("\n=== PORTALOOP | LAPTOP LENDING & EXCHANGE ===")
-        print("1. Register laptop       2. Register borrower")
-        print("3. Create loan           4. View pending and overdue loans")
-        print("5. Record return         6. View available laptops")
-        print("7. View loan history     0. Save and exit")
+        draw_menu(state)
         try:
-            choice = input("Choose an option: ").strip()
+            choice = input(f"{BOLD}{CYAN}Choose an option [0-7]: {RESET}").strip().rstrip(".").strip()
             if choice == "0":
-                print("Changes are saved. Goodbye!")
+                print_message("Changes are saved. Goodbye!", "success")
                 break
             action = actions.get(choice)
             if action:
                 action(state)
             else:
-                print("Invalid option.")
+                print_message("Invalid option. Enter a number from 0 to 7.", "error")
         except (KeyboardInterrupt, EOFError):
-            print("\nExiting. Previously saved records are preserved.")
+            print_message("\nExiting. Previously saved records are preserved.", "warning")
             break
         except OSError as exc:
-            print(f"Could not save data: {exc}")
+            print_message(f"Could not save data: {exc}", "error")
 
 
 if __name__ == "__main__":
