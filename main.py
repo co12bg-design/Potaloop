@@ -40,6 +40,11 @@ CYAN = "\033[96m" if USE_COLOR else ""
 GREEN = "\033[92m" if USE_COLOR else ""
 YELLOW = "\033[93m" if USE_COLOR else ""
 RED = "\033[91m" if USE_COLOR else ""
+BG_NAVY = "\033[48;5;17m" if USE_COLOR else ""
+BG_PANEL = "\033[48;5;24m" if USE_COLOR else ""
+BG_TEAL = "\033[48;5;30m" if USE_COLOR else ""
+FG_WHITE = "\033[97m" if USE_COLOR else ""
+FG_MUTED = "\033[38;5;159m" if USE_COLOR else ""
 
 
 def print_message(message: str, kind: str = "info") -> None:
@@ -50,18 +55,18 @@ def print_message(message: str, kind: str = "info") -> None:
 
 def draw_menu(state: dict) -> None:
     columns = shutil.get_terminal_size((80, 24)).columns
-    width = max(62, min(80, columns - 2))
+    width = max(72, min(100, columns - 2))
     inner = width - 2
     double_column = width >= 76
 
-    def border(left: str, fill: str, right: str) -> None:
-        print(f"{CYAN}{left}{fill * inner}{right}{RESET}")
+    def border(left: str, fill: str, right: str, background: str = "") -> None:
+        print(f"{background}{CYAN}{left}{fill * inner}{right}{RESET}")
 
-    def line(text: str = "", centered: bool = False) -> None:
+    def line(text: str = "", centered: bool = False, background: str = "", foreground: str = "") -> None:
         content_width = inner - 2
         text = text[:content_width]
         content = text.center(content_width) if centered else text.ljust(content_width)
-        print(f"{CYAN}║{RESET} {content} {CYAN}║{RESET}")
+        print(f"{background}{CYAN}║{RESET}{background} {foreground}{content}{RESET}{background} {CYAN}║{RESET}")
 
     open_loans = pending_loans(state)
     open_codes = {loan["equipment_code"] for loan in open_loans}
@@ -72,32 +77,42 @@ def draw_menu(state: dict) -> None:
     overdue_count = sum(loan["due_date"] < TODAY().isoformat() for loan in open_loans)
 
     print()
-    border("╔", "═", "╗")
-    line("PORTALOOP", centered=True)
-    line("LAPTOP LENDING & EXCHANGE", centered=True)
-    border("╠", "═", "╣")
-    line(
-        f"LAPTOPS  {len(state['equipment'])}    AVAILABLE  {available_count}    "
-        f"BORROWERS  {len(state['borrowers'])}"
-    )
-    line(f"OPEN LOANS  {len(open_loans)}    OVERDUE  {overdue_count}")
-    border("╠", "═", "╣")
-    line("MAIN MENU", centered=True)
+    border("╔", "═", "╗", BG_NAVY)
+    line("◈  PORTALOOP  ◈", centered=True, background=BG_NAVY, foreground=FG_WHITE + BOLD)
+    line("LAPTOP LENDING  •  SHARED WITH CARE", centered=True, background=BG_NAVY, foreground=FG_MUTED)
+    border("╠", "═", "╣", BG_PANEL)
+    # Compact KPI labels keep all five counts on one line in a standard terminal.
+    if width >= 94:
+        score = (
+            f"💻 LAPTOPS {len(state['equipment'])}  │  ✅ AVAILABLE {available_count}  │  "
+            f"👥 BORROWERS {len(state['borrowers'])}  │  🔄 OPEN {len(open_loans)}  │  "
+            f"⚠️ OVERDUE {overdue_count}"
+        )
+    else:
+        score = (
+            f"💻 LAP {len(state['equipment'])} │ ✅ FREE {available_count} │ "
+            f"👥 PEOPLE {len(state['borrowers'])} │ 🔄 OPEN {len(open_loans)} │ "
+            f"⚠️ LATE {overdue_count}"
+        )
+    line(score, centered=True, background=BG_PANEL, foreground=FG_WHITE)
+    border("╠", "═", "╣", BG_TEAL)
+    line("✦  MAIN MENU  ✦", centered=True, background=BG_TEAL, foreground=FG_WHITE + BOLD)
+    border("╠", "═", "╣", BG_PANEL)
     options = [
-        ("[1] Register laptop", "[2] Register borrower"),
-        ("[3] Create loan", "[4] Pending / overdue loans"),
-        ("[5] Record return", "[6] Available laptops"),
-        ("[7] Loan history", "[0] Save and exit"),
+        ("[1] 💻 Register laptop", "[2] 👤 Register borrower"),
+        ("[3] 🔄 Create loan", "[4] 📋 Pending / overdue loans"),
+        ("[5] 📥 Record return", "[6] ✅ Available laptops"),
+        ("[7] 🕘 Loan history", "[0] 💾 Save and exit"),
     ]
     if double_column:
         for left, right in options:
-            line(f"{left:<31}  {right}")
+            line(f"{left:<34}  {right}", background=BG_PANEL, foreground=FG_WHITE)
     else:
         for left, right in options:
-            line(left)
-            line(right)
-    border("╚", "═", "╝")
-    print(f"{BOLD}Enter an option number (0-7). You can type 5 or 5.{RESET}")
+            line(left, background=BG_PANEL, foreground=FG_WHITE)
+            line(right, background=BG_PANEL, foreground=FG_WHITE)
+    border("╚", "═", "╝", BG_PANEL)
+    print(f"{FG_MUTED}  Choose an option  [0–7]   •   Type 5 or 5. to record a return{RESET}")
 
 
 def empty_state() -> dict:

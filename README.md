@@ -31,7 +31,7 @@ The project is a local-first console app written in Python. It stores records in
 - 📅 Validate dates and flag overdue loans.
 - 🔁 Record returns, release the laptop, and retain the loan history.
 - 📋 View pending loans, available laptops, and recent history.
-- 🎨 See live inventory and loan counts in a color-coded console dashboard.
+- 🎨 See live inventory and loan counts in a colorful console dashboard with a one-line KPI scoreboard, emoji labels, and a clearly separated main menu.
 - 💾 Save records locally between sessions, with no third-party packages or internet connection required.
 
 ## 🧱 Tech stack
