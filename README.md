@@ -108,25 +108,25 @@ The following section answers the six questions in the assignment brief.
 
 ### 1. Describe the problem
 
-El registro manual dificulta saber con certeza quién tiene cada portátil, cuándo debe devolverlo y qué préstamos siguen pendientes. Esto puede provocar retrasos, pérdida de equipos o asignaciones duplicadas. PortaLoop centraliza los datos y permite consultar el estado de cada préstamo.
+The manual process makes it difficult to know who has each laptop, when it is due, and which loans are still open. This can lead to late returns, lost equipment, or duplicate assignments. PortaLoop centralizes these records and makes each loan’s status easy to check.
 
 ### 2. What data should be recorded?
 
-**Imprescindible:** código único y descripción del portátil; documento y nombre de la persona; fecha de entrega; fecha límite; fecha de devolución y evidencia fotográfica de la entrega.
+**Essential:** a unique laptop asset code and description; the borrower's ID and name; the checkout date; the due date; the return date; and a photo of the laptop at handoff.
 
-**Por confirmar:** contacto obligatorio, accesorios que se controlarán por separado, condición física, autorización, plazo máximo, prórrogas, sanciones, manejo de daños, roles de usuario, tiempo de retención y copias de seguridad. En este MVP el contacto es opcional y los accesorios se anotan como texto.
+**To confirm with the center:** whether contact details are mandatory; which accessories need separate tracking; how device condition and loan authorization are recorded; maximum loan duration and renewal rules; late-return penalties; damage procedures; user roles; data and photo retention; and backup procedures. In this MVP, contact details are optional and accessories can be listed in free-text notes.
 
 ### 3. Questions for the person responsible
 
-- ¿Cómo se identifica cada portátil y qué características del equipo se deben guardar?
-- ¿Qué personas pueden solicitarlo y qué documento se acepta?
-- ¿Qué datos de contacto y autorizaciones son obligatorios?
-- ¿La foto debe mostrar el estado del portátil, a la persona prestataria o ambos?
-- ¿Cuál es el plazo máximo y se permiten prórrogas?
-- ¿Cómo se registran daños, accesorios faltantes y devoluciones tardías?
-- ¿Quién puede registrar, consultar o corregir préstamos?
-- ¿Durante cuánto tiempo se conservan los datos y las fotos?
-- ¿La aplicación debe compartir datos entre varios equipos o usuarios?
+- How is each laptop identified, and which device details must be recorded?
+- Who is eligible to borrow equipment, and which forms of ID are accepted?
+- Which contact details and approvals are required?
+- Should the handoff photo show the laptop's condition, the borrower, or both?
+- What is the maximum loan period, and are renewals allowed?
+- How should damage, missing accessories, and late returns be handled?
+- Who may create, view, or correct loan records?
+- How long should records and photos be retained?
+- Does the application need to share data across multiple computers or users?
 
 ### 4. Sequence / pseudocode
 
@@ -134,35 +134,35 @@ El registro manual dificulta saber con certeza quién tiene cada portátil, cuá
 START
   Register laptops and borrowers
   Repeat until the user chooses Exit:
-    Show menu
-    If user chooses Lend:
-      Confirm laptop exists and is available
-      Confirm borrower exists and has no open loan
-      Validate loan date and due date
-      Capture/select handoff photo
-      If photo is a supported image:
-        Save photo and create the loan
+    Display the menu
+    If the user chooses Lend:
+      Confirm the laptop exists and is available
+      Confirm the borrower exists and has no open loan
+      Validate the checkout date and due date
+      Capture or select a handoff photo
+      If the photo is a supported image:
+        Save the photo and create the loan
       Otherwise:
         Cancel without creating the loan
-    If user chooses Return:
-      Select an open loan and validate return date
-      Record return and release laptop
-    If user chooses Consult:
-      Show pending, overdue, available, or historical records
+    If the user chooses Return:
+      Select an open loan and validate the return date
+      Record the return and release the laptop
+    If the user chooses Consult:
+      Display pending, overdue, available, or historical records
   Save confirmed changes
 END
 ```
 
 ### 5. Tests and expected results
 
-1. **Valid loan:** register a laptop and borrower, then create a loan with a future due date and JPG/PNG photo. Expected: loan appears as pending and the photo is copied to `evidencias/`.
-2. **Borrower already has a laptop:** try to lend a second laptop before the first is returned. Expected: the new loan is blocked.
-3. **Return then borrow again:** record the first laptop’s return and try again. Expected: the laptop becomes available and the borrower can receive another loan.
-4. **Invalid input or missing photo:** use an invalid date, omit the photo, or select an unsupported file. Expected: validation message and no new loan.
+1. **Valid loan:** register a laptop and borrower, then create a loan with a future due date and a JPG or PNG photo. Expected: the loan appears in the pending list and the photo is copied to `evidencias/`.
+2. **Borrower already has a laptop:** try to lend a second laptop before the first one is returned. Expected: PortaLoop blocks the new loan.
+3. **Return, then borrow again:** record the first laptop's return and try again. Expected: the laptop becomes available and the borrower can receive another loan.
+4. **Invalid input or missing photo:** enter an invalid date, omit the photo, or select an unsupported file. Expected: PortaLoop displays a validation message and creates no loan.
 
 ### 6. Assumption and unresolved situation
 
-**Supuesto:** cada portátil tiene un código único y cada persona puede tener como máximo un préstamo abierto. **Situación no resuelta:** el sistema no controla accesorios como inventario separado ni define cómo gestionar daños, prórrogas o sanciones; esas reglas deben confirmarse con el centro.
+**Assumption:** each laptop has a unique asset code, and each borrower may have at most one open loan. **Unresolved situation:** the system does not track accessories as separate inventory or define procedures for damage, renewals, and penalties. The center must confirm those rules before they are added.
 
 ## 🛣️ Next steps
 
