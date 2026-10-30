@@ -144,7 +144,6 @@ def draw_menu(state: dict) -> None:
             line(left, foreground=FG_NAVY)
             line(right, foreground=FG_NAVY)
     border("╚", "═", "╝")
-    print(f"{BG_MENU}{FG_MUTED}  Choose an option  [0–7]   •   Type 5 or 5. to record a return{RESET}")
 
 
 def empty_state() -> dict:
@@ -406,7 +405,7 @@ def main() -> None:
     while True:
         draw_menu(state)
         try:
-            choice = input(f"{BOLD}{CYAN}Choose an option [0-7]: {RESET}").strip().rstrip(".").strip()
+            choice = input(f"{BOLD}{FG_NAVY}Select an option [0-7] › {RESET}").strip().rstrip(".").strip()
             if choice == "0":
                 print_message("Changes are saved. Goodbye!", "success")
                 break
