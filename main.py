@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import sys
+import unicodedata
 from datetime import date, datetime
 from pathlib import Path
 
@@ -40,11 +41,9 @@ CYAN = "\033[96m" if USE_COLOR else ""
 GREEN = "\033[92m" if USE_COLOR else ""
 YELLOW = "\033[93m" if USE_COLOR else ""
 RED = "\033[91m" if USE_COLOR else ""
-BG_NAVY = "\033[48;5;17m" if USE_COLOR else ""
-BG_PANEL = "\033[48;5;24m" if USE_COLOR else ""
-BG_TEAL = "\033[48;5;30m" if USE_COLOR else ""
-FG_WHITE = "\033[97m" if USE_COLOR else ""
-FG_MUTED = "\033[38;5;159m" if USE_COLOR else ""
+BG_MENU = "\033[48;5;153m" if USE_COLOR else ""
+FG_NAVY = "\033[38;5;17m" if USE_COLOR else ""
+FG_MUTED = "\033[38;5;24m" if USE_COLOR else ""
 
 
 def print_message(message: str, kind: str = "info") -> None:
@@ -59,13 +58,46 @@ def draw_menu(state: dict) -> None:
     inner = width - 2
     double_column = width >= 76
 
-    def border(left: str, fill: str, right: str, background: str = "") -> None:
+    def cell_width(text: str) -> int:
+        """Measure terminal cells so emoji do not push menu rows past the border."""
+        width_in_cells = 0
+        for character in text:
+            if unicodedata.combining(character) or character in ("\ufe0e", "\ufe0f", "\u200d"):
+                continue
+            width_in_cells += 2 if unicodedata.east_asian_width(character) in ("W", "F") else 1
+        return width_in_cells
+
+    def fit_cells(text: str, max_cells: int) -> str:
+        result = ""
+        used_cells = 0
+        for character in text:
+            if unicodedata.combining(character) or character in ("\ufe0e", "\ufe0f", "\u200d"):
+                result += character
+                continue
+            character_cells = 2 if unicodedata.east_asian_width(character) in ("W", "F") else 1
+            if used_cells + character_cells > max_cells:
+                break
+            result += character
+            used_cells += character_cells
+        return result
+
+    def pad_cells(text: str, target_cells: int) -> str:
+        return fit_cells(text, target_cells) + " " * max(0, target_cells - cell_width(text))
+
+    def border(left: str, fill: str, right: str) -> None:
+        background = BG_MENU
         print(f"{background}{CYAN}{left}{fill * inner}{right}{RESET}")
 
-    def line(text: str = "", centered: bool = False, background: str = "", foreground: str = "") -> None:
+    def line(text: str = "", centered: bool = False, foreground: str = "") -> None:
+        background = BG_MENU
         content_width = inner - 2
-        text = text[:content_width]
-        content = text.center(content_width) if centered else text.ljust(content_width)
+        text = fit_cells(text, content_width)
+        spaces = max(0, content_width - cell_width(text))
+        if centered:
+            left_spaces = spaces // 2
+            content = " " * left_spaces + text + " " * (spaces - left_spaces)
+        else:
+            content = text + " " * spaces
         print(f"{background}{CYAN}║{RESET}{background} {foreground}{content}{RESET}{background} {CYAN}║{RESET}")
 
     open_loans = pending_loans(state)
@@ -77,10 +109,10 @@ def draw_menu(state: dict) -> None:
     overdue_count = sum(loan["due_date"] < TODAY().isoformat() for loan in open_loans)
 
     print()
-    border("╔", "═", "╗", BG_NAVY)
-    line("◈  PORTALOOP  ◈", centered=True, background=BG_NAVY, foreground=FG_WHITE + BOLD)
-    line("LAPTOP LENDING  •  SHARED WITH CARE", centered=True, background=BG_NAVY, foreground=FG_MUTED)
-    border("╠", "═", "╣", BG_PANEL)
+    border("╔", "═", "╗")
+    line("◈  PORTALOOP  ◈", centered=True, foreground=FG_NAVY + BOLD)
+    line("LAPTOP LENDING  •  SHARED WITH CARE", centered=True, foreground=FG_MUTED)
+    border("╠", "═", "╣")
     # Compact KPI labels keep all five counts on one line in a standard terminal.
     if width >= 94:
         score = (
@@ -94,10 +126,10 @@ def draw_menu(state: dict) -> None:
             f"👥 PEOPLE {len(state['borrowers'])} │ 🔄 OPEN {len(open_loans)} │ "
             f"⚠️ LATE {overdue_count}"
         )
-    line(score, centered=True, background=BG_PANEL, foreground=FG_WHITE)
-    border("╠", "═", "╣", BG_TEAL)
-    line("✦  MAIN MENU  ✦", centered=True, background=BG_TEAL, foreground=FG_WHITE + BOLD)
-    border("╠", "═", "╣", BG_PANEL)
+    line(score, centered=True, foreground=FG_NAVY + BOLD)
+    border("╠", "═", "╣")
+    line("✦  MAIN MENU  ✦", centered=True, foreground=FG_NAVY + BOLD)
+    border("╠", "═", "╣")
     options = [
         ("[1] 💻 Register laptop", "[2] 👤 Register borrower"),
         ("[3] 🔄 Create loan", "[4] 📋 Pending / overdue loans"),
@@ -106,13 +138,13 @@ def draw_menu(state: dict) -> None:
     ]
     if double_column:
         for left, right in options:
-            line(f"{left:<34}  {right}", background=BG_PANEL, foreground=FG_WHITE)
+            line(f"{pad_cells(left, 34)}  {right}", foreground=FG_NAVY)
     else:
         for left, right in options:
-            line(left, background=BG_PANEL, foreground=FG_WHITE)
-            line(right, background=BG_PANEL, foreground=FG_WHITE)
-    border("╚", "═", "╝", BG_PANEL)
-    print(f"{FG_MUTED}  Choose an option  [0–7]   •   Type 5 or 5. to record a return{RESET}")
+            line(left, foreground=FG_NAVY)
+            line(right, foreground=FG_NAVY)
+    border("╚", "═", "╝")
+    print(f"{BG_MENU}{FG_MUTED}  Choose an option  [0–7]   •   Type 5 or 5. to record a return{RESET}")
 
 
 def empty_state() -> dict:
